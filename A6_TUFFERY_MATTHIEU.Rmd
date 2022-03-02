@@ -1,0 +1,126 @@
+---
+title: "A6_TUFFERY_MATTHIEU"
+author: "Matthieu Tuffery"
+date: "28/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+Sequence = list( header = "Human isolate, unknown sequence", 
+                 sequence = gsub("\n",
+                 "",
+                 "ATGTCTGATAATGGACCCCAAAATCAGCGAAATGCACCCCGCATTACGTTTGGTGGACCCTCAGATTCAA
+CTGGCAGTAACCAGAATGGAGAACGCAGTGGGGCGCGATCAAAACAACGTCGGCCCCAAGGTTTACCCAA
+TAATACTGCGTCTTGGTTCACCGCTCTCACTCAACATGGCAAGGAAGACCTTAAATTCCCTCGAGGACAA
+GGCGTTCCAATTAACACCAATAGCAGTCCAGATGACCAAATTGGCTACTACCGAAGAGCTACCAGACGAA
+TTCGTGGTGGTGACGGTAAAATGAAAGATCTCAGTCCAAGATGGTATTTCTACTACCTAGGAACTGGGCC
+AGAAGCTGGACTTCCCTATGGTGCTAACAAAGACGGCATCATATGGGTTGCAACTGAGGGAGCCTTGAAT
+ACACCAAAAGATCACATTGGCACCCGCAATCCTGCTAACAATGCTGCAATCGTGCTACAACTTCCTCAAG
+GAACAACATTGCCAAAAGGCTTCTACGCAGAAGGGAGCAGAGGCGGCAGTCAAGCCTCTTCTCGTTCCTC
+ATCACGTAGTCGCAACAGTTCAAGAAATTCAACTCCAGGCAGCAGTAGGGGAACTTCTCCTGCTAGAATG
+GCTGGCAATGGCGGTGATGCTGCTCTTGCTTTGCTGCTGCTTGACAGATTGAACCAGCTTGAGAGCAAAA
+TGTCTGGTAAAGGCCAACAACAACAAGGCCAAACTGTCACTAAGAAATCTGCTGCTGAGGCTTCTAAGAA
+GCCTCGGCAAAAACGTACTGCCACTAAAGCATACAATGTAACACAAGCTTTCGGCAGACGTGGTCCAGAA
+CAAACCCAAGGAAATTTTGGGGACCAGGAACTAATCAGACAAGGAACTGATTACAAACATTGGCCGCAAA
+TTGCACAATTTGCCCCCAGCGCTTCAGCGTTCTTCGGAATGTCGCGCATTGGCATGGAAGTCACACCTTC
+GGGAACGTGGTTGACCTACACAGGTGCCATCAAATTGGATGACAAAGATCCAAATTTCAAAGATCAAGTC
+ATTTTGCTGAATAAGCATATTGACGCATACAAAACATTCCCACCAACAGAGCCTAAAAAGGACAAAAAGA
+AGAAGGCTGATGAAACTCAAGCCTTACCGCAGAGACAGAAGAAACAGCAAACTGTGACTCTTCTTCCTGC
+TGCAGATTTGGATGATTTCTCCAAACAATTGCAACAATCCATGAGCAGTGCTGACTCAACTCAGGCCTAA"
+                                  )
+                  )
+```
+
+```{r, echo = F}
+library(rentrez)
+library(genbankr)
+library(muscle)
+library(Biostrings)
+library(annotate)
+library(dplyr)
+library(ape)
+library(reshape2)
+```
+```{r, echo = F}
+library(ggtree)
+```
+
+
+
+
+```{r, echo = F}
+BLAST_results = blastSequences(paste(Sequence$sequence), as ="data.frame", hitListSize = 8, timeout = 600)
+
+HitSeq<-read.GenBank(BLAST_results$Hit_accession)
+
+attr(HitSeq, "species")
+```
+On en fait in dataframe
+
+```{r}
+HitsDF<-data.frame(ID=BLAST_results$Hit_accession,Seq=BLAST_results$Hsp_hseq,
+                     stringsAsFactors = F)
+```
+
+convert the DNA sequence in a DNAstring
+
+```{r}
+HitsDNAstring <- HitsDF$Seq %>% # Start with the sequences
+  as.character %>% # Be sure to convert to strings
+  lapply(.,paste0,collapse="") %>% # Collapse each sequence to a single string
+  unlist %>% # Flatten list to a vector
+  DNAStringSet # Convert vector to DNAStringSet object
+```
+
+renome les noms des sequence du DNAstring
+```{r}
+names(HitsDNAstring)<-paste(1:nrow(HitsDF),HitsDF$ID,sep="_")
+
+```
+
+
+faire l'alignement
+```{r}
+Align<-muscle::muscle(stringset=HitsDNAstring, quiet=T)
+```
+le visualiser
+```{r}
+Align
+```
+
+les gaps peuvent poser des problèmes
+```{r}
+SeqLen<-as.numeric(lapply(HitsDNAstring,length))
+library(ggplot2)
+qplot(SeqLen)+theme_bw()
+```
+
+now distance matrix
+
+```{r}
+AlignBin = as.DNAbin(Align)
+DistMat = dist.dna(AlignBin, model = "K80")
+```
+
+```{r}
+DMmat = as.matrix(DistMat)
+DMdat = melt(DMmat)
+```
+
+```{r}
+ggplot(data = DMdat, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()
+```
+
+```{r}
+Tree = nj(DistMat)
+
+ggtree(Tree)
+```
+
+
+
